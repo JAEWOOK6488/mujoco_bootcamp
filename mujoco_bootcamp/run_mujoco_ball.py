@@ -7,6 +7,7 @@ import threading
 import time
 import math
 import rclpy
+from rclpy.action import ActionServer
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rosgraph_msgs.msg import Clock
@@ -16,14 +17,13 @@ from geometry_msgs.msg import Pose2D, Twist
 import mujoco
 import mujoco.viewer
 from ament_index_python.packages import get_package_share_directory
-from scipy.spatial.transform import Rotation as R
 
 class MujocoNode(Node):
     def __init__(self):
         super().__init__('mujoco_node')
         pkg_dir_path = get_package_share_directory('mujoco_bootcamp')
         self.paused = False
-        self.scene_root = os.path.join(pkg_dir_path, "mjcf/diff_drive_car.xml")
+        self.scene_root = os.path.join(pkg_dir_path, "mjcf/ball.xml")
         self.cam = mujoco.MjvCamera()
         mujoco.mjv_defaultCamera(self.cam)
         print("path : " + self.scene_root)
@@ -36,15 +36,20 @@ class MujocoNode(Node):
         self.cam_pose_x = 0
         self.cam_pose_y = 0
         self.cam_pose_z = 0 
-        self.cam_distance = 5
-        self.cam_elevation = -89
+        self.cam_distance = 10
+        self.cam_elevation = -40
         self.cam_azimuth = 90
         self.set_cam_pose_flag = True
-
         self.get_camera_config = 0
 
-        self.print_position_flag = False
-        self.print_orientation_flag = True
+        # 초기위치 설정
+        self.d.qpos[0] = 0
+        self.d.qpos[1] = 0
+        self.d.qpos[2] = 0.1 # 구의 반지름과 동일한 높이로 세팅
+
+        # 초기속도 설정
+        self.d.qvel[0] = 2 # m/s
+        self.d.qvel[2] = 5
 
         #initialize the controller
         self.init_controller(self.m, self.d)
@@ -52,23 +57,25 @@ class MujocoNode(Node):
         #set the controller
         mujoco.set_mjcb_control(self.controller)
 
-    def quat2euler(self, quat_mujoco):
-        # 무조코에서 얻은 쿼터터언은 w, x, y, z 순서이다.
-        quat_scipy = np.array([quat_mujoco[3], quat_mujoco[0], quat_mujoco[1], quat_mujoco[2]])
-
-        r = R.from_quat(quat_scipy)
-        euler = r.as_euler('xyz', degrees=True)
-
-        return euler
-
     def init_controller(self, model,data):
         #initialize the controller here. This function is called once, in the beginning
         pass
 
     def controller(self, model, data):
-        #put the controller here. This function is called inside the simulation.
-        self.d.ctrl[0] = -10
-        self.d.ctrl[1] = 10
+        # Drag Force = -c*vx*|v| i + -c*vy*|v| j + -c*vz*|v| k
+        vx = self.d.qvel[0]
+        vy = self.d.qvel[1]
+        vz = self.d.qvel[2]
+        v = np.sqrt(vx**2+vy**2+vz**2)
+        c = 0.25
+
+        # self.d.qfrc_applied[0] = -c*vx*v
+        # self.d.qfrc_applied[1] = -c*vy*v
+        # self.d.qfrc_applied[2] = -c*vz*v
+
+        self.d.xfrc_applied[1][0] = -c*vx*v
+        self.d.xfrc_applied[1][1] = -c*vy*v
+        self.d.xfrc_applied[1][2] = -c*vz*v
 
     def mujoco(self):
         with mujoco.viewer.launch_passive(self.m, self.d, key_callback=self.key_callback) as viewer:
@@ -76,31 +83,6 @@ class MujocoNode(Node):
             zero_time = self.d.time
             while rclpy.ok():
                 step_start = time.time()
-
-                # XYZ position 출력
-                if (self.print_position_flag):
-                    # print(f"x : {self.d.qpos[0]:.2f}")
-                    # print(f"y : {self.d.qpos[1]:.2f}")
-                    # print(f"z : {self.d.qpos[2]:.2f}")
-                    # print("===========")
-
-                    print(f"x: {self.d.site_xpos[0][0]}")
-                    print(f"y: {self.d.site_xpos[0][1]}")
-                    print(f"z: {self.d.site_xpos[0][2]}")
-                    print("===========")
-
-                # euler angle 출력
-                if (self.print_orientation_flag):
-                    # quat = np.array([self.d.qpos[3], self.d.qpos[4], self.d.qpos[5], self.d.qpos[6]])
-                    # euler = self.quat2euler(quat)
-                    # print(f"yaw : {euler[2]}")
-                    # print("===========")
-
-                    rotmat = np.array(self.d.site_xmat[0]).reshape(3, 3)
-                    r = R.from_matrix(rotmat)
-                    euler = r.as_euler('xyz', degrees=True)
-                    print(f"yaw: {euler[2]:.2f}")  # z축 회전
-                    print("===========")
 
                 # mujoco.mj_forward(self.m, self.d)
                 mujoco.mj_step(self.m, self.d)

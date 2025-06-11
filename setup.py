@@ -28,7 +28,10 @@ setup(
     entry_points={
         'console_scripts': [
             'run_mujoco_2d_manipulator = mujoco_bootcamp.run_mujoco_2d_manipulator:main',
-            'run_mujoco_diff_drive = mujoco_bootcamp.run_mujoco_diff_drive:main'
+            'run_mujoco_diff_drive = mujoco_bootcamp.run_mujoco_diff_drive:main',
+            'run_mujoco_ball = mujoco_bootcamp.run_mujoco_ball:main',
+            'run_mujoco_overlay_display = mujoco_bootcamp.run_mujoco_overlay_disp:main',
+            'run_mujoco_glfw = mujoco_bootcamp.run_mujoco_glfw:main',
         ],
     },
 )
