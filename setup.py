@@ -27,7 +27,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'run_mujoco = mujoco_bootcamp.run_mujoco:main',
+            'run_mujoco_2d_manipulator = mujoco_bootcamp.run_mujoco_2d_manipulator:main',
+            'run_mujoco_diff_drive = mujoco_bootcamp.run_mujoco_diff_drive:main'
         ],
     },
 )
